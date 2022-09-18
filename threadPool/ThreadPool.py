@@ -69,19 +69,22 @@ class CreatePool:
             sleep = self.taskTimeOut
         while True:
             time.sleep(sleep)
-            for key in self.threadMap:
-                data = self.threadMap[key]
-                if data["isCore"] == False and data["task"] == None:
-                    ex = time.time() - data["time"]
-                    if ex > self.sleepTime:
-                        #关闭超时闲置非核心线程
-                        with self.threadMapLock:
-                            data["isActive"] = False
-                            self.queue.notify(key, data["lock"])
-                if data["task"] is not None:
-                    ex = time.time() - data["time"]
-                    if ex > self.sleepTime:
-                        data["task"]["return"] = "timeout error"
+            try:
+                for key in self.threadMap:
+                    data = self.threadMap[key]
+                    if data["isCore"] == False and data["task"] == None:
+                        ex = time.time() - data["time"]
+                        if ex > self.sleepTime:
+                            # 关闭超时闲置非核心线程
+                            with self.threadMapLock:
+                                data["isActive"] = False
+                                self.queue.notify(key, data["lock"])
+                    if data["task"] is not None:
+                        ex = time.time() - data["time"]
+                        if ex > self.sleepTime:
+                            data["task"]["return"] = "timeout error"
+            except Exception:
+                logging.exception(exc_info=True, msg="线程池异常")
 
 
 

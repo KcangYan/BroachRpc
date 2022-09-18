@@ -30,7 +30,10 @@ class Config:
         if key == None:
             return self.params
         else:
-            return self.params[key]
+            try:
+                return self.params[key]
+            except KeyError:
+                return None
 
     def getName(self):
         return self.name
