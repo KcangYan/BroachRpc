@@ -2,10 +2,6 @@ import threading
 import logging
 import time
 from exception.DefException import QueueOverflowError, ThreadPoolIsShutdown
-LOG_FORMAT = '%(asctime)s -%(name)s- %(threadName)s-%(thread)d - %(levelname)s - %(message)s'
-DATE_FORMAT = "%Y/%m/%d %H:%M:%S %p"
-#日志配置
-logging.basicConfig(level=logging.DEBUG,format=LOG_FORMAT,datefmt=DATE_FORMAT)
 
 class Pool:
     def __init__(self, core=1, threadMax=5, keepAliveTime=6, queue=None, poolName="pool", taskTimeOut=10):
@@ -284,6 +280,6 @@ class SyncQueue(Queue):
                 if pool.poolStatus is False and self.task is None:
                     return None
 
-SyncPool = Pool(core=1, threadMax=5, keepAliveTime=6, queue=SyncQueue(), poolName="SyncPool")
-ArrayPool = Pool(core=1, threadMax=5, keepAliveTime=6,
-                 queue=ArrayQueue(queueMax=100, isExcInfo=False, createThreadThreshold=5), poolName="ArrayPool")
+#SyncPool = Pool(core=1, threadMax=5, keepAliveTime=6, queue=SyncQueue(), poolName="SyncPool")
+#BroachPool = Pool(core=3, threadMax=15, keepAliveTime=9,
+#                 queue=ArrayQueue(queueMax=1000, isExcInfo=False, createThreadThreshold=2), poolName="BroachPool")

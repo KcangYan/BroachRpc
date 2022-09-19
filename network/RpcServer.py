@@ -1,18 +1,16 @@
-from config import ConfigScan
+from config import GlobalVariable
 import socket
 import logging
-from threadPool import ThreadPool
-
-config = ConfigScan.Config("../application.json")
 
 class RpcServer:
-    def __init__(self, config:ConfigScan.Config):
-        self.config = config
-        self.address=(config.getParam("rpcIp"),config.getParam("rpcPort"))
+    def __init__(self):
+        self.address=(GlobalVariable.params["params"]["rpcIp"], GlobalVariable.params["params"]["rpcPort"])
         self.recvLen = 1024
-        self.threadPool = ThreadPool.CreatePool(core=1, max=10, poolName="rpcServer", sleepTime=10,
-                                                queue=ThreadPool.ArrayQueue(queueMax=100, createThreadThreshold=5))
+        self.threadPool = GlobalVariable.BroachPool
     def start(self):
+        self.threadPool.submit(self.__serverRun)
+
+    def __serverRun(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.bind(self.address)
         logging.info("rpc 服务端口启动 -> "+str(self.address))

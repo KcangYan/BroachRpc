@@ -1,9 +1,17 @@
 {
   "name": "BroachRpc",
   "version": "1.0.0",
-  "logLevel": "info",
+  "logLevel": "debug",
   "params": {
     "rpcPort": 18080,
-    "rpcIp": "127.0.0.1"
+    "rpcIp": "127.0.0.1",
+    "threadPool" : {
+      "core" : 3,
+      "threadMax" : 15,
+      "keepAliveTime" : 9,
+      "queueMax" :  1000,
+      "isExcInfo" : "False",
+      "createThreadThreshold" : 2
+    }
   }
 }
