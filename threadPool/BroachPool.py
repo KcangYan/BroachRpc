@@ -21,9 +21,9 @@ class Pool:
         self.threadMax = threadMax
         self.keepAliveTime = keepAliveTime
         self.queue = queue
-        if queue == None:
+        if queue is None:
             self.queue = ArrayQueue()
-        if isinstance(queue, Queue) == False:
+        if isinstance(queue, Queue) is False:
             raise Exception("请传入Queue类的实例对象")
         self.threadNum = 0
         self.poolLock = threading.RLock()
@@ -62,7 +62,7 @@ class Pool:
         data = {"isCore": isCore, "lock": threading.Condition(), "isWork": False}
         while self.poolStatus:
             task = self.queue.get(data, self)
-            if task == None:
+            if task is None:
                 break
             data["isWork"] = True
             try:
@@ -130,7 +130,7 @@ class ArrayQueue(Queue):
         self.threadListLock = threading.RLock()
         self.isExcInfo = isExcInfo
         self.createThreadThreshold = createThreadThreshold
-        if createThreadThreshold == None:
+        if createThreadThreshold is None:
             self.createThreadThreshold = queueMax
 
     def put(self, task:dict, pool:Pool):
@@ -160,7 +160,7 @@ class ArrayQueue(Queue):
             pool.createThread()
 
         for thread in self.threadList:
-            if thread["isWork"] == False:
+            if thread["isWork"] is False:
                 lock = thread["lock"]
                 lock.acquire()
                 lock.notify()
@@ -186,7 +186,7 @@ class ArrayQueue(Queue):
                 if len(self.queueList) > 0:
                     task = self.queueList[0]
                     self.queueList.remove(task)
-            if task != None:
+            if task is not None:
                 return task
             else:
                 sTime = time.time()
@@ -223,14 +223,12 @@ class SyncQueue(Queue):
         idleThread = None
         with self.threadListLock:
             for thread in self.threadList:
-                if thread["isWork"] == False:
+                if thread["isWork"] is False:
                     idleThread = thread
                     thread["isWork"] = True
-        if idleThread == None:
+        if idleThread is None:
             putLock.acquire()
-            data = {}
-            data["putLock"] = putLock
-            data["task"] = task
+            data = {"putLock": putLock, "task": task}
             with self.waitTaskLock:
                 self.waitTask.append(data)
             pool.createThread()
@@ -261,7 +259,7 @@ class SyncQueue(Queue):
             with self.taskLock:
                 task = self.task[lock]
                 self.task[lock] = None
-            if task != None:
+            if task is not None:
                 return task
             else:
                 if len(self.waitTask) != 0:
@@ -283,7 +281,7 @@ class SyncQueue(Queue):
                     with self.threadListLock:
                         self.threadList.remove(thread)
                     return None
-                if pool.poolStatus == False and self.task == None:
+                if pool.poolStatus is False and self.task is None:
                     return None
 
 SyncPool = Pool(core=1, threadMax=5, keepAliveTime=6, queue=SyncQueue(), poolName="SyncPool")

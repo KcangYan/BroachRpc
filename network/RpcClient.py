@@ -11,7 +11,8 @@ class RpcClient:
                         poolName="rpcClient", sleepTime=10,
                         queue=ArrayQueue(queueMax=100, createThreadThreshold=5))
 
-    def __send(self, data, ip, port):
+    @staticmethod
+    def __send(data, ip, port):
         addr = (ip, port)
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.sendto(data, addr)

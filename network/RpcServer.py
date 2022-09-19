@@ -25,6 +25,7 @@ class RpcServer:
             except :
                 logging.exception(exc_info=True, msg="rpc 通信异常")
 
-    def __msgHandler(self, data, addr):
+    @staticmethod
+    def __msgHandler(data, addr):
         logging.info("got data from -> " + str(addr))
         logging.info("got data -> " + data.decode("utf-8"))

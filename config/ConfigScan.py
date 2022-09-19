@@ -27,7 +27,7 @@ class Config:
         logging.info("获取配置 "+json.dumps(self.json))
 
     def getParam(self, key=None):
-        if key == None:
+        if key is None:
             return self.params
         else:
             try:
