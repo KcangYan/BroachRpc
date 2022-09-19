@@ -1,11 +1,12 @@
 from config import GlobalVariable
+from network import RpcHandler
 import socket
 import logging
 
 class RpcServer:
     def __init__(self):
         self.address=(GlobalVariable.params["params"]["rpcIp"], GlobalVariable.params["params"]["rpcPort"])
-        self.recvLen = 1024
+        self.recvLen = RpcHandler.bufferLen
         self.threadPool = GlobalVariable.BroachPool
     def start(self):
         self.threadPool.submit(self.__serverRun)

@@ -5,6 +5,7 @@
   "params": {
     "rpcPort": 18080,
     "rpcIp": "127.0.0.1",
+    "udpTimeOut": 3,
     "threadPool" : {
       "core" : 3,
       "threadMax" : 15,
