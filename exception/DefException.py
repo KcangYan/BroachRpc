@@ -9,3 +9,7 @@ class ReceiveBuffOverError(Exception):
 class ThreadPoolIsShutdown(Exception):
     def __init__(self, message):
         self.message = message
+
+class RpcSendNESTimeOutError(Exception):
+    def __init__(self, message):
+        self.message = message

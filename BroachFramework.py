@@ -42,5 +42,3 @@ def getConfig(path):
         getJson = json.load(f)
     GlobalVariable.params = getJson
 
-
-run()

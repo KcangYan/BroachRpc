@@ -1,5 +1,5 @@
 from config import GlobalVariable
-from network import RpcHandler
+from network import RpcHandler, RpcClient
 import socket
 import logging
 
@@ -18,13 +18,46 @@ class RpcServer:
         while True:
             try:
                 data, addr = s.recvfrom(self.recvLen)
-                logging.debug("got data from -> " + str(addr))
-                logging.debug("got data -> " + data.decode("utf-8"))
                 self.threadPool.submit(self.__msgHandler, data, addr)
             except :
                 logging.exception(exc_info=True, msg="rpc 通信异常")
 
-    @staticmethod
-    def __msgHandler(data, addr):
-        logging.info("got data from -> " + str(addr))
-        logging.info("got data -> " + data.decode("utf-8"))
+    def __msgHandler(self, data, addr):
+        logging.debug("got data from -> " + str(addr))
+        logging.debug("got data -> " + data.decode("utf-8"))
+        clientId, msgType, msg = RpcHandler.decodeData(data)
+        if msgType == "NCP":
+            self.__NCPHandler(msg)
+        elif msgType == "NES":
+            self.__NESHandler(msg, clientId)
+
+    def __NCPHandler(self, msg):
+        msgId, msgInfo, isS = RpcHandler.decodeNCP(msg)
+        with RpcHandler.NCPRevLock:
+            if RpcHandler.NCPRev.get(msgId) is None:
+                msgInfoList = [[msgInfo, isS]]
+                RpcHandler.NCPRev[msgId] = msgInfoList
+            else:
+                RpcHandler.NCPRev[msgId].append([msgInfo, isS])
+
+    def __NESHandler(self, msg, clientId):
+        msgId, msgInfo, revIp, revPort, msgPart = RpcHandler.decodeNES(msg)
+        msgOrder = int(msgInfo[5:10])
+        with RpcHandler.NESRevLock:
+            clientMsgDict = RpcHandler.NESRev.get(clientId)
+            if clientMsgDict is None:
+                clientMsgDict = {}
+            msgPartDict = clientMsgDict.get(msgId)
+            if msgPartDict is None:
+                clientMsgDict[msgId] = { msgOrder:msgPart, "msgLen": msgInfo[0:5] }
+                RpcClient.Client.sendNCP(msgId+msgInfo, "0", revIp, revPort)
+            else:
+                if msgPartDict.get(msgOrder) is None:
+                    msgPartDict[msgOrder] = msgPart
+                    RpcClient.Client.sendNCP(msgId+msgInfo, "0", revIp, revPort)
+                else:
+                    if msgPartDict[msgOrder] == msgPart:
+                        RpcClient.Client.sendNCP(msgId+msgInfo, "0", revIp, revPort)
+                    else:
+                        RpcClient.Client.sendNCP(msgId+msgInfo, "2", revIp, revPort)
+

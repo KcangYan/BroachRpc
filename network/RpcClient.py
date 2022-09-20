@@ -1,7 +1,9 @@
 from network import RpcHandler
 from config import GlobalVariable
+from exception import DefException
 import socket
 import logging
+import time
 
 class RpcClient:
 
@@ -14,10 +16,10 @@ class RpcClient:
     def __send(data, ip, port):
         addr = (ip, port)
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        if len(data) > 3028 :
+        if len(data) > RpcHandler.bufferLen :
             raise IOError("发送消息超过缓冲区3028字节长度限制")
         s.sendto(data, addr)
-        logging.debug("发送消息 -> "+str(addr)+" 内容: "+data)
+        logging.debug("发送消息 -> "+str(addr)+" 内容: "+data.decode("utf-8"))
         s.close()
 
     def sendCIM(self, msg, ip, port):
@@ -28,13 +30,59 @@ class RpcClient:
         data = RpcHandler.getNCP(self.id, msgId, isS)
         self.__send(data, ip, port)
 
-    def sendNES(self, msg, ip, port):
-        msgList, msgIdList = RpcHandler.getNES(self.id, GlobalVariable.params["params"]["rpcIp"],
+    def sendNES(self, msgId, msg, ip, port):
+        if RpcHandler.NCPRev.get(msgId) is not None:
+            return "idRepeat"
+        msgDict, msgInfoList = RpcHandler.getNES(self.id, msgId, GlobalVariable.params["params"]["rpcIp"],
                                     GlobalVariable.params["params"]["rpcPort"], msg)
-        for item in msgList:
-            self.__send(item, ip, port)
+        for key in msgDict:
+            self.__send(msgDict[key], ip, port)
 
         udpTimeOut = int(GlobalVariable.params["params"]["udpTimeOut"])
+        timeUse = 0
+        while timeUse <= udpTimeOut:
+            revInfoList = RpcHandler.NCPRev.get(msgId)
+            if revInfoList is None:
+                time.sleep(self.stepTime)
+                timeUse = timeUse + self.stepTime
+                continue
+            for revInfo in revInfoList:
+                msgInfo = revInfo[0]
+                isS = revInfo[1]
+                if isS == "0":
+                    msgInfoList.remove(msgInfo)
+                elif isS == "2":
+                    #id重复 报错 重发
+                    with RpcHandler.NCPRevLock:
+                        RpcHandler.NCPRev.pop(msgId)
+                    return "idRepeat"
+            if len(msgInfoList) == 0:
+                break
+
+            time.sleep(self.stepTime)
+            timeUse = timeUse + self.stepTime
+
+            revInfoList = RpcHandler.NCPRev[msgId]
+            for revInfo in revInfoList:
+                msgInfo = revInfo[0]
+                isS = revInfo[1]
+                if isS == "0":
+                    msgInfoList.remove(msgInfo)
+                elif isS == "2":
+                    #id重复 报错 重发
+                    with RpcHandler.NCPRevLock:
+                        RpcHandler.NCPRev.pop(msgId)
+                    return "idRepeat"
+            if len(msgInfoList) == 0:
+                break
+
+            for key in msgInfoList:
+                self.__send(msgDict[key], ip, port)
+        with RpcHandler.NCPRevLock:
+            RpcHandler.NCPRev.pop(msgId)
+
+        if timeUse > udpTimeOut:
+            raise DefException.RpcSendNESTimeOutError("通信超时")
 
 
 

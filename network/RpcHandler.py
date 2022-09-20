@@ -1,6 +1,8 @@
 import random
 import threading
 from exception.DefException import ReceiveBuffOverError
+from config import GlobalVariable
+import time
 """
 定义消息 
  交互id (9位) 基于每个通信客户端生成 （每次程序启动会生成一个id 用于接下来的交互）
@@ -16,10 +18,10 @@ from exception.DefException import ReceiveBuffOverError
  CIM 消息 
  缓冲区字节以内的单向udp消息
 """
-NESServer = {}
+NESRev = {}
+NESRevLock = threading.RLock()
 NCPRev = {}
 NCPRevLock = threading.RLock()
-NESClient = {}
 bufferLen = 3028
 #bufferLen = 53
 
@@ -53,39 +55,69 @@ def getNCP(clientId, msgId, isS="0"):
     return data
 
 def decodeNCP(data):
-    msgId = data[0:19]
+    msgId = data[0:9]
+    msgInfo = data[9:19]
     isS = data[19:20]
-    return msgId.decode("utf-8"), isS.decode("utf-8")
+    return msgId.decode("utf-8"), msgInfo.decode("utf-8") ,isS.decode("utf-8")
 
-def getNES(clientId, revIp, revPort ,msg):
-    msgList = []
-    msgIdList = []
-    msgId = getId(9)
+def getNES(clientId, msgId, revIp, revPort ,msg):
+    msgDict = {}
+    msgInfoList = []
     msgData = msg.encode("utf-8")
-    msgLen = bufferLen-51
-    if len(msgData) > msgLen:
-        y = len(msgData)%msgLen
+    msgLenLimit = bufferLen-51
+    msgLen = len(msgData)
+    if msgLen > msgLenLimit:
+        y = msgLen%msgLenLimit
         if y == 0:
-            order = int(len(msgData)/msgLen)
+            order = int(msgLen/msgLenLimit)
         else:
-            order = int(len(msgData)/msgLen) + 1
+            order = int(msgLen/msgLenLimit) + 1
         revAddress = getIpPortStr(revIp, revPort)
         orderS = getCover(str(order), 5, "0")
         for i in range(0, order):
             data = clientId + "NES" + msgId + orderS + getCover(str(i), 5, "0") + revAddress
-            msgIdList.append(msgId + orderS + getCover(str(i), 5, "0"))
+            msgInfoList.append(orderS + getCover(str(i), 5, "0"))
             data = data.encode("utf-8")
-            start = i*msgLen
-            end = (i+1) * msgLen
-            if end > len(msgData):
-                end = len(msgData)
-            msgList.append(data+msgData[start:end])
+            start = i*msgLenLimit
+            end = (i+1) * msgLenLimit
+            if end > msgLen:
+                end = msgLen
+            msgDict[orderS + getCover(str(i), 5, "0")] = data+msgData[start:end]
     else:
         data = clientId + "NES" + msgId + "00001" + "00000" + getIpPortStr(revIp, revPort)
         data = data.encode("utf-8")
-        msgList.append(data+msgData)
-        msgIdList.append(msgId + "00001" + "00000")
-    return msgList, msgIdList
+        msgDict["00001" + "00000"] = data+msgData
+        msgInfoList.append("00001" + "00000")
+    return msgDict, msgInfoList
+
+def decodeNES(data):
+    msgId = data[0:9]
+    msgInfo = data[9:19]
+    revIp = data[19:34].decode("utf-8")
+    revPort = data[34:39].decode("utf-8")
+    msgPart = data[39:]
+    return msgId.decode("utf-8"), msgInfo.decode("utf-8"), revIp.replace(" ",""), int(revPort), msgPart
+
+def getNESRev(clientId, msgId):
+    udpTimeOut = int(GlobalVariable.params["params"]["udpTimeOut"])
+    timeUse = 0
+    msg = b""
+    while timeUse <= udpTimeOut:
+        clientMsgDict = NESRev.get(clientId)
+        if clientMsgDict is None:
+            time.sleep(0.1)
+            timeUse = timeUse + 0.1
+            continue
+        msgPartDict = clientMsgDict.get(msgId)
+        if msgPartDict is not None:
+            msgLen = int(msgPartDict["msgLen"])
+            getMsgNum = len(msgPartDict)-1
+            if getMsgNum == msgLen:
+                for i in range(0, msgLen):
+                    msg = msg + msgPartDict[i]
+                return msg.decode("utf-8")
+        time.sleep(0.1)
+        timeUse = timeUse + 0.1
 
 def getIpPortStr(ip:str, port):
     ipl = ip.split(".")
