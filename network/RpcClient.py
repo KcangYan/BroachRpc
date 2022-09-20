@@ -8,7 +8,6 @@ import time
 class RpcClient:
 
     def __init__(self):
-        self.id = RpcHandler.getId()
         self.pool = GlobalVariable.BroachPool
         self.stepTime = 0.15 # 重传间隔
 
@@ -23,17 +22,17 @@ class RpcClient:
         s.close()
 
     def sendCIM(self, msg, ip, port):
-        data = RpcHandler.getCIM(self.id, msg)
+        data = RpcHandler.getCIM(msg)
         self.__send(data, ip, port)
 
     def sendNCP(self, msgId, isS, ip, port):
-        data = RpcHandler.getNCP(self.id, msgId, isS)
+        data = RpcHandler.getNCP(msgId, isS)
         self.__send(data, ip, port)
 
     def sendNES(self, msgId, msg, ip, port):
         if RpcHandler.NCPRev.get(msgId) is not None:
             return "idRepeat"
-        msgDict, msgInfoList = RpcHandler.getNES(self.id, msgId, GlobalVariable.params["params"]["rpcIp"],
+        msgDict, msgInfoList = RpcHandler.getNES(msgId, GlobalVariable.params["params"]["rpcIp"],
                                     GlobalVariable.params["params"]["rpcPort"], msg)
         for key in msgDict:
             self.__send(msgDict[key], ip, port)
@@ -63,6 +62,8 @@ class RpcClient:
             timeUse = timeUse + self.stepTime
 
             revInfoList = RpcHandler.NCPRev[msgId]
+            if revInfoList is None:
+                continue
             for revInfo in revInfoList:
                 msgInfo = revInfo[0]
                 isS = revInfo[1]
@@ -82,7 +83,7 @@ class RpcClient:
             RpcHandler.NCPRev.pop(msgId)
 
         if timeUse > udpTimeOut:
-            raise DefException.RpcSendNESTimeOutError("通信超时")
+            raise DefException.RpcSendNESTimeOutError("发送响应超时")
 
 
 

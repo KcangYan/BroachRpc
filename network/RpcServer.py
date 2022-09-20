@@ -25,11 +25,11 @@ class RpcServer:
     def __msgHandler(self, data, addr):
         logging.debug("got data from -> " + str(addr))
         logging.debug("got data -> " + data.decode("utf-8"))
-        clientId, msgType, msg = RpcHandler.decodeData(data)
+        msgType, msg = RpcHandler.decodeData(data)
         if msgType == "NCP":
             self.__NCPHandler(msg)
         elif msgType == "NES":
-            self.__NESHandler(msg, clientId)
+            self.__NESHandler(msg)
 
     def __NCPHandler(self, msg):
         msgId, msgInfo, isS = RpcHandler.decodeNCP(msg)
@@ -40,16 +40,13 @@ class RpcServer:
             else:
                 RpcHandler.NCPRev[msgId].append([msgInfo, isS])
 
-    def __NESHandler(self, msg, clientId):
+    def __NESHandler(self, msg):
         msgId, msgInfo, revIp, revPort, msgPart = RpcHandler.decodeNES(msg)
         msgOrder = int(msgInfo[5:10])
         with RpcHandler.NESRevLock:
-            clientMsgDict = RpcHandler.NESRev.get(clientId)
-            if clientMsgDict is None:
-                clientMsgDict = {}
-            msgPartDict = clientMsgDict.get(msgId)
+            msgPartDict = RpcHandler.NESRev.get(msgId)
             if msgPartDict is None:
-                clientMsgDict[msgId] = { msgOrder:msgPart, "msgLen": msgInfo[0:5] }
+                RpcHandler.NESRev[msgId] = { msgOrder:msgPart, "msgLen": msgInfo[0:5] }
                 RpcClient.Client.sendNCP(msgId+msgInfo, "0", revIp, revPort)
             else:
                 if msgPartDict.get(msgOrder) is None:
@@ -60,4 +57,8 @@ class RpcServer:
                         RpcClient.Client.sendNCP(msgId+msgInfo, "0", revIp, revPort)
                     else:
                         RpcClient.Client.sendNCP(msgId+msgInfo, "2", revIp, revPort)
+        msgPartDict = RpcHandler.NESRev.get(msgId)
+        if len(msgPartDict) == msgOrder:
+            #收到完整NES消息通知上游处理
+            pass
 
