@@ -17,14 +17,13 @@ import time
  CIM 消息 
  缓冲区字节以内的单向udp消息
 """
-NESRev = {}
+NESRevPart = {} #收集收到的NES消息片段
+NESRev = {} #接受到的完整的NES消息
 NESRevLock = threading.RLock()
-NESRevOverId = []
-NESRevOverIdLock = threading.RLock()
-NCPRev = {}
+
+NCPRev = {} #响应NCP消息
 NCPRevLock = threading.RLock()
-NCPRevOverId = []
-NCPRevOverIdLock = threading.RLock()
+
 bufferLen = 3028
 #bufferLen = 53
 
@@ -103,20 +102,13 @@ def decodeNES(data):
 def getNESRev(msgId):
     udpTimeOut = int(GlobalVariable.params["params"]["udpTimeOut"])
     timeUse = 0
-    msg = b""
     while timeUse <= udpTimeOut:
-        msgPartDict = NESRev.get(msgId)
-        if msgPartDict is not None:
-            msgLen = int(msgPartDict["msgLen"])
-            getMsgNum = len(msgPartDict)-1
-            if getMsgNum == msgLen:
-                for i in range(0, msgLen):
-                    msg = msg + msgPartDict[i]
-                with NESRevLock:
-                    NESRev.pop(msgId)
-                return msg.decode("utf-8")
+        msgDict = NESRev.get(msgId)
+        if msgDict is not None:
+            return msgDict.get("msg").decode("utf-8")
         time.sleep(0.1)
         timeUse = timeUse + 0.1
+    return "timeOut"
 
 def getIpPortStr(ip:str, port):
     ipl = ip.split(".")

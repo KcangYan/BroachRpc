@@ -1,6 +1,7 @@
 from network import RpcServer, RpcClient
 from threadPool import BroachPool
 from config import GlobalVariable
+from apply import FuncSignal
 import json
 import logging
 
@@ -35,6 +36,7 @@ def run(path='./application.json'):
                                                 poolName="BroachPool")
     # 启动服务端进程
     server = RpcServer.RpcServer()
+    server.addNESCallBack(FuncSignal.callBackNES)
     server.start()
 
 def getConfig(path):

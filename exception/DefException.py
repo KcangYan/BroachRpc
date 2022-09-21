@@ -13,3 +13,7 @@ class ThreadPoolIsShutdown(Exception):
 class RpcSendNESTimeOutError(Exception):
     def __init__(self, message):
         self.message = message
+
+class CallRpcTimeOutError(Exception):
+    def __init__(self, message):
+        self.message = message

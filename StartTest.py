@@ -1,16 +1,23 @@
 import BroachFramework
+from apply import Component
 
 BroachFramework.run()
 
 from network import RpcClient,RpcHandler
+from apply import FuncSignal
 import time
 import logging
-time.sleep(1)
-msgId = "kcang1590"
-msg = ""
-for i in range(0, 1000):
-    msg = msg + "test "
-logging.info(RpcClient.Client.sendNES(msgId, msg, "127.0.0.1", 18081))
+time.sleep(2)
 
-time.sleep(15)
-logging.info(RpcHandler.getNESRev(RpcClient.Client.id, msgId))
+msg = ""
+for i in range(0,1000):
+    msg = msg + "hello word "
+
+test = {"funcId": "work", "args": None }
+print(FuncSignal.callRpc(test, "127.0.0.1", 18080))
+
+@Component.rpcRoute()
+def work(x,y):
+    print(x)
+    print(y)
+    return "work"

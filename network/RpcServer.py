@@ -2,14 +2,19 @@ from config import GlobalVariable
 from network import RpcHandler, RpcClient
 import socket
 import logging
+import time
 
 class RpcServer:
     def __init__(self):
         self.address=(GlobalVariable.params["params"]["rpcIp"], GlobalVariable.params["params"]["rpcPort"])
         self.recvLen = RpcHandler.bufferLen
         self.threadPool = GlobalVariable.BroachPool
+        self.callBackNES = []
     def start(self):
         self.threadPool.submit(self.__serverRun)
+
+    def addNESCallBack(self, fn):
+        self.callBackNES.append(fn)
 
     def __serverRun(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -43,10 +48,12 @@ class RpcServer:
     def __NESHandler(self, msg):
         msgId, msgInfo, revIp, revPort, msgPart = RpcHandler.decodeNES(msg)
         msgOrder = int(msgInfo[5:10])
+        msgLen = int(msgInfo[0:5])
         with RpcHandler.NESRevLock:
-            msgPartDict = RpcHandler.NESRev.get(msgId)
+            msgPartDict = RpcHandler.NESRevPart.get(msgId)
             if msgPartDict is None:
-                RpcHandler.NESRev[msgId] = { msgOrder:msgPart, "msgLen": msgInfo[0:5] }
+                if RpcHandler.NESRev.get(msgId) is None:
+                    RpcHandler.NESRevPart[msgId] = { msgOrder:msgPart, "msgLen": msgLen }
                 RpcClient.Client.sendNCP(msgId+msgInfo, "0", revIp, revPort)
             else:
                 if msgPartDict.get(msgOrder) is None:
@@ -57,8 +64,14 @@ class RpcServer:
                         RpcClient.Client.sendNCP(msgId+msgInfo, "0", revIp, revPort)
                     else:
                         RpcClient.Client.sendNCP(msgId+msgInfo, "2", revIp, revPort)
-        msgPartDict = RpcHandler.NESRev.get(msgId)
-        if len(msgPartDict) == msgOrder:
-            #收到完整NES消息通知上游处理
-            pass
+            msgPartDict = RpcHandler.NESRevPart.get(msgId)
+            if (len(msgPartDict)-1) == msgLen:
+                revMsg = b""
+                for i in range(0, msgLen):
+                    revMsg = revMsg + msgPartDict[i]
+                RpcHandler.NESRev[msgId] = {"msg": revMsg, "time":time.time()}
+                #通知上游函数处理
+                for fn in self.callBackNES:
+                    self.threadPool.submit(fn, revMsg.decode("utf-8"), msgId, revIp, int(revPort))
+                #    fn(revMsg.decode("utf-8"))
 

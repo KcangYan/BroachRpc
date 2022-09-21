@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "logLevel": "debug",
   "params": {
-    "rpcPort": 18080,
+    "rpcPort": 18081,
     "rpcIp": "127.0.0.1",
     "udpTimeOut": 3,
     "threadPool" : {
