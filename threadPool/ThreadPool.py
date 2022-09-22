@@ -1,14 +1,10 @@
 import threading
 import logging
 import time
-from exception.DefException import QueueOverflowError
-LOG_FORMAT = '%(asctime)s -%(name)s- %(threadName)s-%(thread)d - %(levelname)s - %(message)s'
-DATE_FORMAT = "%Y/%m/%d %H:%M:%S %p"
-#日志配置
-logging.basicConfig(level=logging.INFO,format=LOG_FORMAT,datefmt=DATE_FORMAT)
+from exception.DefException import QueueOverflowError, ThreadPoolIsShutdown
 
-class CreatePool:
-    def __init__(self, core=1, max=5, sleepTime=5, queue=None, poolName="pool", taskTimeOut=10):
+class Pool:
+    def __init__(self, core=1, threadMax=5, keepAliveTime=6, queue=None, poolName="pool", taskTimeOut=10):
         """
         :param core:  核心线程数
         :param max:  最大线程数
@@ -18,320 +14,272 @@ class CreatePool:
         :param taskTimeOut 任务执行返回值超时时间 即超过这个时间 异步返回值会提示timeout error
         """
         self.core = core
-        self.max = max
-        self.sleepTime = sleepTime
+        self.threadMax = threadMax
+        self.keepAliveTime = keepAliveTime
         self.queue = queue
-        if queue == None:
+        if queue is None:
             self.queue = ArrayQueue()
-        if isinstance(queue, Queue) == False:
+        if isinstance(queue, Queue) is False:
             raise Exception("请传入Queue类的实例对象")
         self.threadNum = 0
+        self.poolLock = threading.RLock()
         self.poolName = poolName
-        self.threadMap = {}
-        self.threadMapLock = threading.RLock()
         self.taskTimeOut = taskTimeOut
+        self.poolStatus = True
         for i in range(0, self.core):
-            self.__createThread(True)
-        thread = threading.Thread(target=self.__aroundThreadFunc)
-        thread.setName(self.poolName+"-检查线程")
-        thread.start()
-        logging.info("线程池 "+self.poolName+" 创建完成")
+            self.createThread(True)
+        logging.debug("线程池 "+self.poolName+" 创建完成")
 
-    def createThread(self):
+    def createThread(self, isCore=False):
         """
-        供外部调用创建非核心线程
-        :return: False 创建失败 True 创建成功
+        创建线程 false标识创建失败
+        :param isCore: 是否核心线程
+        :return: 成功或者失败
         """
-        return self.__createThread()
-    def __createThread(self, isCore=False):
-        """
-        内部使用创建线程
-        :param isCore: 是否是核心线程
-        :return:
-        """
-        with self.threadMapLock:
-            if len(self.threadMap) >= self.max:
+        with self.poolLock:
+            if self.threadNum >= self.threadMax:
                 return False
-            thread = threading.Thread(target=self.__threadFunc)
-            threadName = self.poolName + "-" + str(self.__getNum())
-            thread.setName(threadName)
-            condLock = threading.Condition()
-            data = {"lock": condLock, "isCore": isCore, "time": time.time(), "isActive": True, "task": None}
-            self.threadMap[threadName] = data
-            thread.setDaemon(True)
-            thread.start()
-            return True
+            else:
+                thread = threading.Thread(target=self.__threadFunc, kwargs={"isCore": isCore})
+                threadName = self.poolName + "-" + str(self.threadNum + 1)
+                thread.setName(threadName)
+                self.threadNum = self.threadNum + 1
+                thread.start()
+                return True
 
-    def __aroundThreadFunc(self):
-        if self.taskTimeOut > self.sleepTime:
-            sleep = self.sleepTime
-        else:
-            sleep = self.taskTimeOut
-        while True:
-            time.sleep(sleep)
-            try:
-                for key in self.threadMap:
-                    data = self.threadMap[key]
-                    if data["isCore"] == False and data["task"] == None:
-                        ex = time.time() - data["time"]
-                        if ex > self.sleepTime:
-                            # 关闭超时闲置非核心线程
-                            with self.threadMapLock:
-                                data["isActive"] = False
-                                self.queue.notify(key, data["lock"])
-                    if data["task"] is not None:
-                        ex = time.time() - data["time"]
-                        if ex > self.sleepTime:
-                            data["task"]["return"] = "timeout error"
-            except Exception:
-                logging.exception(exc_info=True, msg="线程池异常")
-
-
-
-    def __threadFunc(self):
+    def __threadFunc(self, isCore):
         """
-        线程执行函数 由isActive 属性控制线程是否结束
-        :return:
+        工作线程执行函数
+        会像队列的get方法获取任务，None标识退出线程
+        或者poolStatus = false 退出循环结束工作线程
+        :param isCore: 是否核心线程
+        :return: void
         """
-        threadName = threading.currentThread().getName()
-        data = self.threadMap[threadName]
-        while data.get("isActive"):
-            logging.debug("正在尝试获取任务")
-            task = self.queue.get(data["lock"], self)
-            logging.debug("获取任务 "+str(task))
-            data["task"] = task
+        data = {"isCore": isCore, "lock": threading.Condition(), "isWork": False}
+        while self.poolStatus:
+            task = self.queue.get(data, self)
             if task is None:
-                continue
+                break
+            data["isWork"] = True
             try:
                 task["return"] = task.get("func")(*task.get("args"), **task.get("kwargs"))
-            except:
-                task["return"] = "function handle Error"
+            except Exception as e:
+                task["return"] = "taskError: "+str(e)
                 logging.exception("任务执行异常 " + str(task), exc_info=True)
-            data["time"] = time.time()
-            data["task"] = None
-        with self.threadMapLock:
-            self.threadMap.pop(threadName)
-        logging.info(threadName+" 关闭")
-
-    def __getNum(self):
-        self.threadNum = self.threadNum + 1
-        return self.threadNum
+            data["isWork"] = False
+        logging.debug("exit")
+        with self.poolLock:
+            self.threadNum = self.threadNum - 1
 
     def submit(self, fn, *args, **kwargs):
         """
         提交任务
+        {"func": fn, "args": args, "kwargs": kwargs, "return": None}
         :param fn: 执行函数对象
         :param args: 参数
         :param kwargs: 参数
         :return: 异步对象dict
         """
-        task = {"func": fn, "args": args, "kwargs": kwargs, "time": time.time(), "return": None}
-        return self.queue.put(task, self)
+        if self.poolStatus:
+            task = {"func": fn, "args": args, "kwargs": kwargs, "return": None}
+            return self.queue.put(task, self)
+        else:
+            raise ThreadPoolIsShutdown("线程池已关闭，无法提交任务")
+
+    def shutDown(self):
+        """
+        关闭线程池
+        :return:
+        """
+        self.poolStatus = False
 
 class Queue:
-    def put(self, task:dict, pool:CreatePool):
+    def put(self, task:dict, pool:Pool):
+        """
+        线程池调用put方法提交任务
+        :param task: {"func": fn, "args": args, "kwargs": kwargs, "return": None}
+        :param pool: 线程池对象
+        :return: {"func": fn, "args": args, "kwargs": kwargs, "return": None}
+        """
         raise Exception("请实现队列的PUT方法")
-    def get(self, lock, pool:CreatePool):
+    def get(self, thread:dict, pool:Pool):
+        """
+        线程池调取get方法获取任务
+        :param thread: {"isCore": isCore, "lock": threading.Condition(), "isWork": False}
+        :param pool: 线程池对象
+        :return: void
+        """
         raise Exception("请实现队列的GET方法")
-    def notify(self, threadName, lock):
-        raise Exception("请实现队列的notify方法")
 
 class ArrayQueue(Queue):
-    def __init__(self, queueMax=5, isExcInfo=False, createThreadThreshold=None, queueFullWaitTime=1):
+    def __init__(self, queueMax=5, isExcInfo=False, createThreadThreshold=None):
         """
         :param queueMax: 队列最大值
-        :param isExcInfo: 溢出后是否报错 默认不报错交给主线程执行任务
+        :param isExcInfo: 溢出后是否报错 默认不报错交给提交任务的线程执行任务
         :param createThreadThreshold: 队列满足阈值后创建非核心线程
         :param queueFullWaitTime: 队列满了以后 等待任务接取时间
         """
         self.queueMax = queueMax
         self.queueList = []
         self.queueListLock = threading.RLock()
-        self.threadMap = {}
-        self.threadMapLock = threading.RLock()
+        self.threadList = []
+        self.threadListLock = threading.RLock()
         self.isExcInfo = isExcInfo
         self.createThreadThreshold = createThreadThreshold
-        if createThreadThreshold == None:
+        if createThreadThreshold is None:
             self.createThreadThreshold = queueMax
-        self.queueFullWaitTime = queueFullWaitTime
-    def put(self, task:dict, pool:CreatePool):
+
+    def put(self, task:dict, pool:Pool):
         """
-        {"isActive": False, "func": fn, "args": args, "kwargs": kwargs, "time": time.time()}
-        :return: 返回对象
-         {'func': <function work at 0x00000262E39D6438>, 'args': (0,), 'kwargs': {}, 'time': 1661868095.0303512, 'return': 0}
+        当提交任务到线程池时 线程池会调用队列的put方法传递任务对象处理 并将put方法的返回值作为异步对象返回给提交任务的线程
+        队列满了以后 根据设置 是否抛出异常 中断线程
+        :param task: {"func": fn, "args": args, "kwargs": kwargs, "return": None}
+        :param pool: 调用的线程池对象
+        :return: {"func": fn, "args": args, "kwargs": kwargs, "return": wait} dict 待任务执行完成后 return键值将会获得返回对象
         """
-        queueLen = len(self.queueList)
-        if queueLen >= self.createThreadThreshold:
-            pool.createThread()
-        if queueLen < self.queueMax:
-            with self.queueListLock:
-                self.queueList.append(task)
-        if queueLen >= self.queueMax:
-            isCreateThreadSuccess = pool.createThread()
-            if isCreateThreadSuccess:
-                with self.queueListLock:
-                    self.queueList.append(task)
+        if len(self.queueList) >= self.queueMax and pool.threadNum == pool.threadMax:
+            if self.isExcInfo:
+                raise QueueOverflowError("任务队列已满")
             else:
-                time.sleep(self.queueFullWaitTime)
-                if len(self.queueList) >= self.queueMax:
-                    logging.error("任务队列已满，无法接取线程任务")
-                    if self.isExcInfo:
-                        raise QueueOverflowError("任务队列已满")
-                    else:
-                        logging.error("任务将交由主线程运行")
-                        return task.get("func")(*task.get("args"), **task.get("kwargs"))
-                else:
-                    with self.queueListLock:
-                        self.queueList.append(task)
-        self.__discharged()
+                logging.error("任务队列已满，将交由提交线程执行任务")
+                try:
+                    task["return"] = task.get("func")(*task.get("args"), **task.get("kwargs"))
+                    return task
+                except Exception as e:
+                    task["return"] = "taskError: "+str(e)
+                    logging.exception("任务执行异常 " + str(task), exc_info=True)
+
+        with self.queueListLock:
+            self.queueList.append(task)
+
+        if len(self.queueList) >= self.createThreadThreshold:
+            pool.createThread()
+
+        for thread in self.threadList:
+            if thread["isWork"] is False:
+                lock = thread["lock"]
+                lock.acquire()
+                lock.notify()
+                lock.release()
         return task
 
-    def __discharged(self):
+    def get(self, thread:dict, pool:Pool):
         """
-        每次执行释放（唤醒）一个线程出来
+        工作线程获取任务 调用get方法 从队列中获取任务
+        没有获取到任务 就用锁阻塞线程 等待唤醒获取任务
+        当非核心线程闲置时间超过阈值时 返回None 结束工作线程
+        :param thread: 线程对象 {"isCore": isCore, "lock": threading.Condition(), "isWork": False}
+        :param pool: 线程池对象
         :return:
         """
-        with self.threadMapLock:
-            for key in self.threadMap:
-                data = self.threadMap[key]
-                if data["isActive"] == False:
-                    lock = data["lock"]
-                    lock.acquire()
-                    lock.notify()
-                    #lock.wait()
-                    data["isActive"] = True
-                    lock.release()
-                    logging.debug("唤醒线程 "+key)
-                    break
+        if thread not in self.threadList:
+            with self.threadListLock:
+                self.threadList.append(thread)
 
-    def get(self, lock, pool:CreatePool):
-        """
-        data = {"thread": thread, "lock": condLock,
-                "isActive": False, "isShutdown": False,
-                "isCore": isCore, "time": time.time()}
-        :return:
-        """
-        threadName = threading.currentThread().name
         while True:
+            task = None
             with self.queueListLock:
-                queueLen = len(self.queueList)
-                if queueLen > 0:
+                if len(self.queueList) > 0:
                     task = self.queueList[0]
                     self.queueList.remove(task)
-                    return task
-            data = {"lock": lock, "isActive": False}
-            # 无任务时 阻塞线程 并将当前线程加入阻塞监听队列
-            with self.threadMapLock:
-                self.threadMap[threadName] = data
-            lock.acquire()
-            # lock.notify()
-            lock.wait()
-            lock.release()
-            if threadName not in self.threadMap:
-                break
-
-    def notify(self, threadName, lock):
-        """
-        线程池关闭闲置线程
-        :param threadName: 线程名
-        :param lock: 锁
-        :return:
-        """
-        logging.info("关闭线程: "+threadName)
-        with self.threadMapLock:
-            self.threadMap.pop(threadName)
-        lock.acquire()
-        lock.notify()
-        # lock.wait()
-        lock.release()
+            if task is not None:
+                return task
+            else:
+                sTime = time.time()
+                lock = thread["lock"]
+                lock.acquire()
+                lock.wait(pool.keepAliveTime)
+                lock.release()
+                eTime = time.time()
+                if thread["isCore"] == False and (eTime - sTime) >= pool.keepAliveTime:
+                    with self.threadListLock:
+                        self.threadList.remove(thread)
+                    return None
+                if pool.poolStatus == False and len(self.queueList) == 0:
+                    return None
 
 class SyncQueue(Queue):
     def __init__(self):
-        self.threadMap = {}
-        self.threadMapLock = threading.RLock()
+        self.threadList = []
+        self.threadListLock = threading.RLock()
         self.task = {}
         self.taskLock = threading.RLock()
-        self.globalLockList = []
-        self.globalLockListLock = threading.RLock()
+        self.waitTask = []
+        self.waitTaskLock = threading.RLock()
 
-    def get(self, lock, pool:CreatePool):
-        threadName = threading.currentThread().name
-        while True:
-            if len(self.task) == 0:
-                data = {"lock": lock, "isActive": False}
-                # 无任务时 阻塞线程 并将当前线程加入阻塞监听队列
-                with self.threadMapLock:
-                    self.threadMap[threadName] = data
-                lock.acquire()
-                # lock.notify()
-                lock.wait()
-                lock.release()
-                if threadName not in self.threadMap:
-                    break
-            else:
-                with self.taskLock:
-                    task = None
-                    popKey = None
-                    for key in self.task:
-                        task = self.task[key]
-                        popKey = key
-                        break
-                    self.task.pop(popKey)
-                    lock = task["lock"]
-                lock.acquire()
-                lock.notify()
-                # lock.wait()
-                lock.release()
-                return task
-
-    def notify(self, threadName, lock):
+    def put(self, task:dict, pool:Pool):
         """
-        线程池关闭闲置线程
-        :param threadName: 线程名
-        :param lock: 锁
+        阻塞提交任务的线程 直到提交的任务被线程获取执行
+        :param task: 任务对象 {"isCore": isCore, "lock": threading.Condition(), "isWork": False}
+        :param pool: 线程池对象
         :return:
         """
-        logging.info("关闭线程: "+threadName)
-        with self.threadMapLock:
-            self.threadMap.pop(threadName)
-        lock.acquire()
-        lock.notify()
-        # lock.wait()
-        lock.release()
+        putLock = threading.Condition()
 
-    def __discharged(self, pool:CreatePool):
-        """
-        每次执行释放（唤醒）一个线程出来
-        :return:
-        """
-        isDischarged = False
-        with self.threadMapLock:
-            for key in self.threadMap:
-                data = self.threadMap[key]
-                if data["isActive"] == False:
-                    lock = data["lock"]
-                    lock.acquire()
-                    lock.notify()
-                    #lock.wait()
-                    data["isActive"] = True
-                    lock.release()
-                    logging.debug("唤醒线程 "+key)
-                    isDischarged = True
-                    break
-        if isDischarged == False:
+        idleThread = None
+        with self.threadListLock:
+            for thread in self.threadList:
+                if thread["isWork"] is False:
+                    idleThread = thread
+                    thread["isWork"] = True
+        if idleThread is None:
+            putLock.acquire()
+            data = {"putLock": putLock, "task": task}
+            with self.waitTaskLock:
+                self.waitTask.append(data)
             pool.createThread()
-
-    def put(self, task:dict, pool:CreatePool):
-        logging.info(str(task))
-        threadName = threading.currentThread().name
-        lock = threading.Condition()
-        task["lock"] = lock
-        with self.taskLock:
-            self.task[threadName] = task
-        lock.acquire()
-        #lock.notify()
-        self.__discharged(pool)
-        lock.wait()
-        lock.release()
+            putLock.wait()
+            putLock.release()
+        else:
+            with self.taskLock:
+                self.task[idleThread["lock"]] = task
+            lock = idleThread["lock"]
+            lock.acquire()
+            lock.notify()
+            lock.release()
         return task
 
+    def get(self, thread:dict, pool:Pool):
+        """
+        没有获取到任务就阻塞 获取到任务就把原本阻塞提交任务线程的锁释放掉
+        :param thread: 线程对象
+        :param pool: 线程池对象
+        :return:
+        """
+        lock = thread["lock"]
+        if thread not in self.threadList:
+            with self.threadListLock:
+                self.threadList.append(thread)
+                self.task[lock] = None
+        while True:
+            with self.taskLock:
+                task = self.task[lock]
+                self.task[lock] = None
+            if task is not None:
+                return task
+            else:
+                if len(self.waitTask) != 0:
+                    with self.waitTaskLock:
+                        data = self.waitTask[0]
+                        self.waitTask.remove(data)
+                    putLock = data["putLock"]
+                    task = data["task"]
+                    putLock.acquire()
+                    putLock.notify()
+                    putLock.release()
+                    return task
+                sTime = time.time()
+                lock.acquire()
+                lock.wait(pool.keepAliveTime)
+                lock.release()
+                eTime = time.time()
+                if thread["isCore"] == False and (eTime - sTime) >= pool.keepAliveTime:
+                    with self.threadListLock:
+                        self.threadList.remove(thread)
+                    return None
+                if pool.poolStatus is False and self.task is None:
+                    return None
+
+#SyncPool = Pool(core=1, threadMax=5, keepAliveTime=6, queue=SyncQueue(), poolName="SyncPool")
+#BroachPool = Pool(core=3, threadMax=15, keepAliveTime=9,
+#                 queue=ArrayQueue(queueMax=1000, isExcInfo=False, createThreadThreshold=2), poolName="BroachPool")
