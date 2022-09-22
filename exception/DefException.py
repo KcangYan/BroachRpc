@@ -17,3 +17,11 @@ class RpcSendNESTimeOutError(Exception):
 class CallRpcTimeOutError(Exception):
     def __init__(self, message):
         self.message = message
+
+class RpcFuncNotFundError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+class RpcError(Exception):
+    def __init__(self, message):
+        self.message = message
