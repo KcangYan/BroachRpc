@@ -1,4 +1,4 @@
-from config import GlobalVariable
+from common import GlobalVariable
 import logging
 """
 rpc装饰器 获取程序启动时的函数路由表

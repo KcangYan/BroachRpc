@@ -1,6 +1,6 @@
-from network import RpcServer, RpcClient
+from network import RpcService
 from threadPool import BroachPool
-from config import GlobalVariable
+from common import GlobalVariable
 from apply import FuncSignal
 import json
 import logging
@@ -23,7 +23,7 @@ def run(path='./application.json'):
         logging.basicConfig(level=logging.ERROR, format=LOG_FORMAT, datefmt=DATE_FORMAT)
     else:
         logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
-    logging.info("获取配置 "+json.dumps(GlobalVariable.params))
+    logging.info("获取配置 " + json.dumps(GlobalVariable.params))
     # 初始化线程池
     threadParams = GlobalVariable.params["params"]["threadPool"]
     GlobalVariable.BroachPool = BroachPool.Pool(core=int(threadParams["core"]),
@@ -35,12 +35,39 @@ def run(path='./application.json'):
                                                     createThreadThreshold=int(threadParams["createThreadThreshold"])),
                                                 poolName="BroachPool")
     # 启动服务端进程
-    server = RpcServer.RpcServer()
-    server.addNESCallBack(FuncSignal.callBackNES)
-    server.start()
+    RpcService.instance.serverStart()
 
 def getConfig(path):
     with open(path, encoding="utf-8") as f:
         getJson = json.load(f)
-    GlobalVariable.params = getJson
+    if getJson.get("name") is not None:
+        GlobalVariable.name = getJson.get("name")
+    if getJson.get("version") is not None:
+        GlobalVariable.version = getJson.get("version")
+    if getJson.get("logLevel") is not None:
+        GlobalVariable.logLevel = getJson.get("logLevel")
+    if getJson.get("params") is not None:
+        params = getJson.get("params")
+        if params.get("rpcPort") is not None:
+            GlobalVariable.params["rpcPort"] = params.get("rpcPort")
+        if params.get("rpcIp") is not None:
+            GlobalVariable.params["rpcIp"] = params.get("rpcIp")
+        if params.get("rpcTimeOut") is not None:
+            GlobalVariable.params["rpcTimeOut"] = params.get("rpcTimeOut")
+        if params.get("udpTimeOut") is not None:
+            GlobalVariable.params["udpTimeOut"] = params.get("udpTimeOut")
+        if params.get("threadPool") is not None:
+            threadPool = params.get("threadPool")
+            if threadPool.get("core") is not None:
+                GlobalVariable.params["threadPool"]["core"] = threadPool.get("core")
+            if threadPool.get("threadMax") is not None:
+                GlobalVariable.params["threadPool"]["threadMax"] = threadPool.get("threadMax")
+            if threadPool.get("keepAliveTime") is not None:
+                GlobalVariable.params["threadPool"]["keepAliveTime"] = threadPool.get("keepAliveTime")
+            if threadPool.get("queueMax") is not None:
+                GlobalVariable.params["threadPool"]["queueMax"] = threadPool.get("queueMax")
+            if threadPool.get("isExcInfo") is not None:
+                GlobalVariable.params["threadPool"]["isExcInfo"] = threadPool.get("isExcInfo")
+            if threadPool.get("createThreadThreshold") is not None:
+                GlobalVariable.params["threadPool"]["createThreadThreshold"] = threadPool.get("createThreadThreshold")
 

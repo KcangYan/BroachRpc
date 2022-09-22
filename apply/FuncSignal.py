@@ -1,8 +1,8 @@
 import json
 import logging
 import threading
-from network import RpcClient, RpcHandler
-from config import GlobalVariable
+from network import RpcClient, MsgHandler
+from common import GlobalVariable
 from exception import DefException
 
 """
@@ -48,11 +48,11 @@ def callRpc(reqJson: dict, ip: str, port: int):
 
 
 def sendNES(reqJsonStr, ip, port):
-    msgId = RpcHandler.getId(18)
+    msgId = MsgHandler.getId(18)
     sendResult = RpcClient.Client.sendNES(msgId, reqJsonStr, ip, port)
     while sendResult == "idRepeat":
         logging.error("NES通信消息id，重复异常。重新随机id")
-        msgId = RpcHandler.getId(18)
+        msgId = MsgHandler.getId(18)
         sendResult = RpcClient.Client.sendNES(msgId, reqJsonStr, ip, port)
 
 def callBackNES(reqJson: str, ip: str, port: int):

@@ -1,7 +1,6 @@
-import random
 import threading
 from exception.DefException import ReceiveBuffOverError
-from config import GlobalVariable
+from common import GlobalVariable
 import time
 """
 定义消息 
@@ -17,33 +16,16 @@ import time
  CIM 消息 
  缓冲区字节以内的单向udp消息
 """
-NESRevPart = {} #收集收到的NES消息片段
-NESRev = {} #接受到的完整的NES消息
-NESRevLock = threading.RLock()
-
-NCPRev = {} #响应NCP消息
-NCPRevLock = threading.RLock()
-
-bufferLen = 3028
-#bufferLen = 53
 
 def decodeData(data):
     msgType = data[0:3]
     msg = data[3:len(data)]
     return msgType.decode("utf-8"), msg
 
-def getId(n=9):
-    id = ""
-    template = "0987654321qwertyuioplkjhgfdsazxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM"
-    for i in range(0,n):
-        strIndex = random.randint(0,61)
-        id = id + template[strIndex]
-    return id
-
 def getCIM(msg):
     data = "CIM" + msg
     data = data.encode("utf-8")
-    if len(data) > bufferLen:
+    if len(data) > GlobalVariable.BufferLen:
         raise ReceiveBuffOverError("CIM 消息不能超过 3025字节")
     return data
 
@@ -65,7 +47,7 @@ def getNES(msgId, revIp, revPort ,msg):
     msgDict = {}
     msgInfoList = []
     msgData = msg.encode("utf-8")
-    msgLenLimit = bufferLen-51
+    msgLenLimit = GlobalVariable.BufferLen-51
     msgLen = len(msgData)
     if msgLen > msgLenLimit:
         y = msgLen%msgLenLimit
@@ -98,17 +80,6 @@ def decodeNES(data):
     revPort = data[43:48].decode("utf-8")
     msgPart = data[48:]
     return msgId.decode("utf-8"), msgInfo.decode("utf-8"), revIp.replace(" ",""), int(revPort), msgPart
-
-def getNESRev(msgId):
-    udpTimeOut = int(GlobalVariable.params["params"]["udpTimeOut"])
-    timeUse = 0
-    while timeUse <= udpTimeOut:
-        msgDict = NESRev.get(msgId)
-        if msgDict is not None:
-            return msgDict.get("msg").decode("utf-8")
-        time.sleep(0.1)
-        timeUse = timeUse + 0.1
-    return "timeOut"
 
 def getIpPortStr(ip:str, port):
     ipl = ip.split(".")
