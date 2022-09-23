@@ -40,7 +40,7 @@ class RpcService:
             self.__orgNES[reqId] = {"lock": lock, "result": DefException.CallRpcTimeOutError("响应超时")}
         reqJson = {"funcId": funcId, "args":args, "kwargs": kwargs, "reqId": reqId, "orgId":"0"}
         lock.acquire()
-        self.__sendNES(json.dumps(reqJson), ip, port)
+        self.__sendNES(json.dumps(reqJson, ensure_ascii=False), ip, port)
         lock.wait(rpcTimeOut)
         lock.release()
 
