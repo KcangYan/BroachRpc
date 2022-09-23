@@ -14,7 +14,7 @@ def run(path='./application.json'):
     # 初始化日志配置
     LOG_FORMAT = '%(asctime)s -%(name)s- %(threadName)s-%(thread)d - %(levelname)s - %(message)s'
     DATE_FORMAT = "%Y/%m/%d %H:%M:%S %p"
-    logLevel = GlobalVariable.params["logLevel"]
+    logLevel = GlobalVariable.logLevel
     if logLevel == "info":
         logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
     elif logLevel == "debug":
@@ -25,7 +25,7 @@ def run(path='./application.json'):
         logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
     logging.info("获取配置 " + json.dumps(GlobalVariable.params))
     # 初始化线程池
-    threadParams = GlobalVariable.params["params"]["threadPool"]
+    threadParams = GlobalVariable.params["threadPool"]
     GlobalVariable.BroachPool = BroachPool.Pool(core=int(threadParams["core"]),
                                                 threadMax=int(threadParams["threadMax"]),
                                                 keepAliveTime=int(threadParams["keepAliveTime"]),
@@ -34,6 +34,7 @@ def run(path='./application.json'):
                                                     isExcInfo=threadParams["isExcInfo"] == "True" or threadParams["isExcInfo"] == "true",
                                                     createThreadThreshold=int(threadParams["createThreadThreshold"])),
                                                 poolName="BroachPool")
+    RpcService.instance = RpcService.RpcService()
     # 启动服务端进程
     RpcService.instance.serverStart()
 

@@ -1,6 +1,10 @@
 import random
 import threading
+import time
 
+"""
+单例装饰器
+"""
 def singleton(cls):
     """
     单例装饰器
@@ -18,6 +22,9 @@ def singleton(cls):
             return _instance_dict.get(cls)
     return inner
 
+"""
+id获取
+"""
 def getId(n=9):
     """
     生成随机id 默认9位
@@ -31,3 +38,21 @@ def getId(n=9):
         id = id + template[strIndex]
     return id
 
+"""
+定时任务执行函数
+"""
+def timerTask(tasks:list):
+    while True:
+        time.sleep(1)
+        for item in tasks:
+            fn = item.get("fn")
+            timeStep = int(item.get("timeStep"))
+            lastTime = item.get("time")
+            if lastTime is None:
+                item["time"] = time.time()
+                fn()
+            else:
+                ex = time.time() - lastTime
+                if ex >= timeStep:
+                    item["time"] = time.time()
+                    fn()

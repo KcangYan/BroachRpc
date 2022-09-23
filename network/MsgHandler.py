@@ -32,8 +32,8 @@ def getCIM(msg):
 def decodeCIM(data):
     return data.decode("utf-8")
 
-def getNCP(msgId, msgInfo, isS="0"):
-    data = "NCP" + msgId + msgInfo + isS
+def getNCP(msgIdInfo, isS="0"):
+    data = "NCP" + msgIdInfo + isS
     data = data.encode("utf-8")
     return data
 

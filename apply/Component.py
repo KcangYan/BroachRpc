@@ -11,7 +11,7 @@ def rpcRoute(name=None):
             routeName = name
         if GlobalVariable.FuncRoute.get(routeName) is None:
             GlobalVariable.FuncRoute[routeName] = fn
-            logging.debug(routeName+" __init__ registry route success")
+            logging.debug("function: "+routeName+" registry route success")
         else:
             logging.error(routeName+" registry route fail，name is replace")
         return fn

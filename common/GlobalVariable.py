@@ -27,3 +27,5 @@ FuncRoute = {}
 BufferLen = 3028
 #NES类udp消息间隔重传
 IntervalUdp = 0.15
+#定时任务组 [{ "fn": fn, "timeStep": 6 }]
+TimerTasks = []

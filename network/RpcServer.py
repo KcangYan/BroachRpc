@@ -7,7 +7,7 @@ import threading
 @CommonDef.singleton
 class RpcServer:
     def __init__(self, rpcClient):
-        self.address=(GlobalVariable.params["params"]["rpcIp"], GlobalVariable.params["params"]["rpcPort"])
+        self.address=(GlobalVariable.params["rpcIp"], GlobalVariable.params["rpcPort"])
         self.recvLen = GlobalVariable.BufferLen
         self.threadPool = GlobalVariable.BroachPool
         self.__callBackNES = []
@@ -32,8 +32,7 @@ class RpcServer:
                 logging.exception(exc_info=True, msg="rpc 通信异常")
 
     def __msgHandler(self, data, addr):
-        logging.debug("got data from -> " + str(addr))
-        logging.debug("got data -> " + data.decode("utf-8"))
+        logging.debug("获得消息 <- " + str(addr)+" 内容: "+data.decode("utf-8"))
         msgType, msg = MsgHandler.decodeData(data)
         if msgType == "NCP":
             self.__NCPHandler(msg)
@@ -76,7 +75,7 @@ class RpcServer:
                     revMsg = revMsg + msgPartDict[i]
                 #RpcHandler.NESRev[msgId] = {"msg": revMsg, "time":time.time()}
                 #通知上游函数处理
-                for fn in self.callBackNES:
+                for fn in self.__callBackNES:
                     self.threadPool.submit(fn, revMsg.decode("utf-8"), revIp, int(revPort))
                 #    fn(revMsg.decode("utf-8"))
                 #删除片段中的NES消息
