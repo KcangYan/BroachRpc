@@ -50,7 +50,7 @@ class RpcClient:
             #time.sleep(GlobalVariable.IntervalUdp)
             lock.acquire()
             if timeUse == 0:
-                for key in msgDict:
+                for key in msgInfoList:
                     self.__send(msgDict[key], ip, port)
             lock.wait(GlobalVariable.IntervalUdp)
             lock.release()
@@ -68,14 +68,11 @@ class RpcClient:
                         return "idRepeat"
             if len(msgInfoList) == 0:
                 break
-            for key in msgInfoList:
-                self.__send(msgDict[key], ip, port)
 
+        with self.__NCPRevLock:
+            self.__NCPRev.pop(msgId)
         if timeUse > udpTimeOut and len(msgInfoList) != 0:
             raise DefException.RpcSendNESTimeOutError("发送响应超时 ->"+ip+":"+str(port)+" 无应答")
-        else:
-            with self.__NCPRevLock:
-                self.__NCPRev.pop(msgId)
 
     def handlerNCP(self, msgId, msgInfo, isS):
         with self.__NCPRevLock:
