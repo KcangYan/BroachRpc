@@ -17,4 +17,7 @@ def rpcRoute(name=None):
         return fn
     return getFun
 
+def rpcCall(name=None):
+    pass
+
 

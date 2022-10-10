@@ -11,6 +11,7 @@ class RpcServer:
         self.recvLen = GlobalVariable.BufferLen
         self.threadPool = GlobalVariable.BroachPool
         self.__callBackNES = []
+        self.__callBackCIM = []
         self.__NESRevPart = {} #收集收到的NES消息片段
         self.__NESRevLock = threading.RLock()
         self.__rpcClient = rpcClient
@@ -19,6 +20,9 @@ class RpcServer:
 
     def addNESCallBack(self, fn):
         self.__callBackNES.append(fn)
+
+    def addCIMCallBack(self, fn):
+        self.__callBackCIM.append(fn)
 
     def __serverRun(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -38,6 +42,12 @@ class RpcServer:
             self.__NCPHandler(msg)
         elif msgType == "NES":
             self.__NESHandler(msg)
+        elif msgType == "CIM":
+            self.__CIMHandler(msg)
+
+    def __CIMHandler(self, msg):
+        for fn in self.__callBackCIM:
+            fn(MsgHandler.decodeCIM(msg))
 
     def __NCPHandler(self, msg):
         msgId, msgInfo, isS = MsgHandler.decodeNCP(msg)

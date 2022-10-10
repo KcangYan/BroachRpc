@@ -1,9 +1,11 @@
 from common import CommonDef,GlobalVariable
 from exception import DefException
 from network import RpcServer,RpcClient
+from apply import Component
 import threading
 import logging
 import json
+import time
 
 """
 rpc 应用通信协议 json
@@ -13,7 +15,7 @@ rpc 应用通信协议 json
   "kwargs": "", 参数
   "reqId": "0 18", 请求报文id 响应报文的话就是0
   "orgId": "0 18", 响应原报文id 请求报文的话就是0
-  "status": "", 处理状态
+  "status": "", 处理状态 200 成功 400 报错 404 找不到函数
   "result": "" 远程调用返回值
 }
 """
@@ -24,10 +26,12 @@ class RpcService:
         self.rpcClient = RpcClient.RpcClient()
         self.rpcServer = RpcServer.RpcServer(self.rpcClient)
         self.rpcServer.addNESCallBack(self.__NESRevHandler)
+        self.rpcServer.addCIMCallBack(self.__CIMRevHandler)
         self.__orgNES = {}
         self.__orgNESLock = threading.RLock()
     def serverStart(self):
         self.rpcServer.start()
+        GlobalVariable.BroachPool.submit(self.__searchCluster)
 
     def sendRpc(self, ip: str, port: int, funcId, *args, **kwargs):
         #走底层通信NES消息 发送NES消息 对方应答NES消息
@@ -65,6 +69,26 @@ class RpcService:
             logging.error("NES通信消息id，重复异常。重新随机id")
             msgId = CommonDef.getId(18)
             sendResult = self.rpcClient.sendNES(msgId, reqJsonStr, ip, port)
+
+    def __searchCluster(self):
+        addressList = GlobalVariable.params.get("clusterAddress")
+        localIp = GlobalVariable.params.get("rpcIp")
+        localPort = GlobalVariable.params.get("rpcIp")
+        for address in addressList:
+            ip = address.split(":")[0]
+            port = address.split(":")[1]
+            msg = localIp+":"+localPort
+            self.rpcClient.sendCIM(msg, ip, port)
+        while True:
+            logging.debug("启动集群活动探测线程")
+            time.sleep(2)
+
+
+    def __CIMRevHandler(self, msg):
+        logging.debug("收到CIM消息: "+ msg)
+        ip = msg.split(":")[0]
+        port = msg.split(":")[1]
+        self.sendRpc(ip, port, "getRpcRoute")
 
 
     def __NESRevHandler(self, msg, revIp, revPort):

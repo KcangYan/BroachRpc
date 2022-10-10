@@ -1,7 +1,6 @@
 from network import RpcService
 from threadPool import BroachPool
 from common import GlobalVariable
-from apply import FuncSignal
 import json
 import logging
 
@@ -53,6 +52,8 @@ def getConfig(path):
             GlobalVariable.params["rpcPort"] = params.get("rpcPort")
         if params.get("rpcIp") is not None:
             GlobalVariable.params["rpcIp"] = params.get("rpcIp")
+        if params.get("clusterAddress") is not None:
+            GlobalVariable.params["clusterAddress"] = params.get("clusterAddress")
         if params.get("rpcTimeOut") is not None:
             GlobalVariable.params["rpcTimeOut"] = params.get("rpcTimeOut")
         if params.get("udpTimeOut") is not None:
