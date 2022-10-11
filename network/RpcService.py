@@ -88,8 +88,11 @@ class RpcService:
         logging.debug("收到CIM消息: "+ msg)
         ip = msg.split(":")[0]
         port = msg.split(":")[1]
-        self.sendRpc(ip, port, "getRpcRoute")
+        getRoute = self.sendRpc(ip, port, "__getRpcRouteBroachRpc")
 
+    @Component.rpcRoute("__getRpcRouteBroachRpc")
+    def getRpcRoute(self):
+        return {"FuncRoute": GlobalVariable.FuncRoute, "FuncRouteRpc": GlobalVariable.FuncRouteRpc}
 
     def __NESRevHandler(self, msg, revIp, revPort):
         try:
