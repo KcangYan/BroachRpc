@@ -36,6 +36,9 @@ FuncRoute = {}
 FuncRouteRpc = {}
 FuncRouteRpcLock = threading.RLock()
 
+#微服务集群实例总数列表 ["ip:port", ...]
+ServerInstance = []
+
 #udp缓冲区大小
 BufferLen = 3028
 
