@@ -74,9 +74,24 @@ class RpcService:
         addressList = GlobalVariable.params.get("clusterAddress")
         localIp = GlobalVariable.params.get("rpcIp")
         localPort = GlobalVariable.params.get("rpcIp")
+
+        #获取集群实例总列表
         for address in addressList:
             ip = address.split(":")[0]
             port = address.split(":")[1]
+            serverInstanceList = None
+            try:
+                serverInstanceList = self.sendRpc(ip, port, "__getServerInstance")
+            except Exception as e:
+                logging.error(str(e))
+            if serverInstanceList is not None:
+                for item in serverInstanceList:
+                    if item not in GlobalVariable.ServerInstance:
+                        GlobalVariable.ServerInstance.append(item)
+        #通知所有实例 本机上线
+        for item in GlobalVariable.ServerInstance:
+            ip = item.split(":")[0]
+            port = item.split(":")[1]
             msg = localIp+":"+localPort
             self.rpcClient.sendCIM(msg, ip, port)
         while True:
@@ -90,7 +105,8 @@ class RpcService:
         port = msg.split(":")[1]
         if msg not in GlobalVariable.ServerInstance:
             GlobalVariable.ServerInstance.append(msg)
-        getRoute = self.sendRpc(ip, port, "__getRpcRoute")
+        self.sendRpc(ip, port, "__setRpcRoute", {GlobalVariable.params.get("rpcIp")+":"+GlobalVariable.params.get("rpcIp"):GlobalVariable.FuncRoute})
+
 
 
     def __NESRevHandler(self, msg, revIp, revPort):
@@ -130,9 +146,12 @@ class RpcService:
                 self.__sendNES(json.dumps(re), revIp, revPort)
 
 """
-返回本机路由信息
+返回本机信息
 """
 @Component.rpcRoute("__getRpcRoute")
-def getRpcRoute(self):
+def getRpcRoute():
     return list(GlobalVariable.FuncRoute.keys())
+@Component.rpcRoute("__getServerInstance")
+def getServerInstance():
+    return GlobalVariable.ServerInstance
 instance = None
