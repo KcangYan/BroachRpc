@@ -92,7 +92,7 @@ class RpcService:
         for item in GlobalVariable.ServerInstance:
             ip = item.split(":")[0]
             port = item.split(":")[1]
-            msg = localIp+":"+localPort
+            msg = localIp+":"+localPort+":"+"online"
             self.rpcClient.sendCIM(msg, ip, port)
         while True:
             logging.debug("启动集群活动探测线程")
@@ -103,9 +103,15 @@ class RpcService:
         logging.debug("收到CIM消息: "+ msg)
         ip = msg.split(":")[0]
         port = msg.split(":")[1]
-        if msg not in GlobalVariable.ServerInstance:
-            GlobalVariable.ServerInstance.append(msg)
-        self.sendRpc(ip, port, "__setRpcRoute", {GlobalVariable.params.get("rpcIp")+":"+GlobalVariable.params.get("rpcIp"):GlobalVariable.FuncRoute})
+        thing = msg.split(":")[2] #cim事件
+        if thing == "online":
+            #主机上线事件
+            address = ip+":"+port
+            if address not in GlobalVariable.ServerInstance:
+                GlobalVariable.ServerInstance.append(address)
+            #发送本机路由表给上线的主机
+            self.sendRpc(ip, port, "__setRpcRoute", {"address":GlobalVariable.params.get("rpcIp")+":"+GlobalVariable.params.get("rpcIp"),
+                                                     "route":GlobalVariable.FuncRoute})
 
 
 
@@ -154,4 +160,17 @@ def getRpcRoute():
 @Component.rpcRoute("__getServerInstance")
 def getServerInstance():
     return GlobalVariable.ServerInstance
+@Component.rpcRoute("__setRpcRoute")
+def setRpcRoute(rpcRoute:dict):
+    if rpcRoute is not None:
+        address = rpcRoute.get("address")
+        route = rpcRoute.get("route")
+        for funcId in route:
+            funcIdInfo = GlobalVariable.FuncRouteRpc.get(funcId)
+            if funcIdInfo is None:
+                GlobalVariable.FuncRouteRpc[funcId] = {address:{"errorRatio": 0, "reqNum": 0, "updateTime": time.time()}}
+            else:
+                if funcIdInfo.get(address) is None:
+                    funcIdInfo[address] = {"errorRatio": 0, "reqNum": 0, "updateTime": time.time()}
+
 instance = None
