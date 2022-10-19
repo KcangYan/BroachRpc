@@ -1,6 +1,8 @@
 import random
 import threading
 import time
+import logging
+from common import GlobalVariable
 
 """
 单例装饰器
@@ -56,3 +58,20 @@ def timerTask(tasks:list):
                 if ex >= timeStep:
                     item["time"] = time.time()
                     fn()
+
+"""
+rpc装饰器 获取程序启动时的函数路由表 和 BroachFramework包里的一样
+"""
+def rpcRoute(name=None):
+    def getFun(fn):
+        if name is None:
+            routeName = fn.__name__
+        else:
+            routeName = name
+        if GlobalVariable.FuncRoute.get(routeName) is None:
+            GlobalVariable.FuncRoute[routeName] = fn
+            logging.debug("function: "+routeName+" registry route success")
+        else:
+            logging.error(routeName+" registry route fail，name is replace")
+        return fn
+    return getFun
