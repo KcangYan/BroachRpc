@@ -18,7 +18,7 @@ class RpcClient:
 
     @staticmethod
     def __send(data, ip, port):
-        addr = (ip, port)
+        addr = (ip, int(port))
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         if len(data) > GlobalVariable.BufferLen :
             raise IOError("发送消息超过缓冲区3028字节长度限制")
@@ -28,7 +28,7 @@ class RpcClient:
 
     def sendCIM(self, msg, ip, port):
         data = MsgHandler.getCIM(msg)
-        self.__send(data, ip, port)
+        self.__send(data, ip, int(port))
 
     def sendNCP(self, msgIdInfo, isS, ip, port):
         data = MsgHandler.getNCP(msgIdInfo, isS)

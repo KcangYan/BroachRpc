@@ -1,9 +1,15 @@
+import BroachApply
+from common import GlobalVariable
 import BroachFramework
 
-@BroachFramework.rpcCall()
+BroachFramework.run()
+
+@BroachApply.rpcCall()
 def t(*args, **kwargs):
     print("t")
 
-t("1019")
+@BroachApply.rpcRoute()
+def work01():
+    print("work01"+GlobalVariable.params.get("rpcIp") + ":" + GlobalVariable.params.get("rpcIp"))
 
 
