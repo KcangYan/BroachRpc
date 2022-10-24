@@ -83,11 +83,12 @@ class RpcService:
         localIp = str(GlobalVariable.params.get("rpcIp"))
         localPort = str(GlobalVariable.params.get("rpcPort"))
 
+        time.sleep(3) #等待一会儿 udp服务器起来再执行
         #获取集群实例总列表
         for address in addressList:
             ip = address.split(":")[0]
             port = address.split(":")[1]
-            self.registerServer[address] = {"register": 0, "heartbeat": 0}
+            self.registerServer[address] = 0
             serverInstanceList = None
             try:
                 #获取其他主机里的集群主机信息
@@ -97,7 +98,7 @@ class RpcService:
             if serverInstanceList is not None:
                 for item in serverInstanceList:
                     if item not in self.registerServer.keys():
-                        self.registerServer[item] = {"register": 0, "heartbeat": 0}
+                        self.registerServer[item] = 0
         #通知所有实例 本机上线
         for item in self.registerServer.keys():
             ip = item.split(":")[0]
@@ -106,25 +107,27 @@ class RpcService:
             self.rpcClient.sendCIM(msg, ip, port)
         time.sleep(3)
         logging.debug("启动集群存活探测线程")
+        isSetLocalRoute = []
         while True:
             for item in self.registerServer.keys():
                 ip = item.split(":")[0]
                 port = item.split(":")[1]
-                oldTime = self.registerServer.get(item).get("heartbeat")
-                ex = time.time() - oldTime
-                if self.registerServer.get(item).get("register") == 1:
-                    msg = localIp + ":" + localPort + ":" + "heartbeat"
-                    self.rpcClient.sendCIM(msg, ip, port)
-                    continue
-                if ex <= 3 :
-                    logging.debug("发送路由表至主机 -> " +ip + ":" + port)
-                    self.sendRpc(ip, port, "__setRpcRoute",
-                                 {"address": GlobalVariable.params.get("rpcIp") + ":" + GlobalVariable.params.get("rpcPort"),
-                                  "route": GlobalVariable.FuncRoute})
-                    self.registerServer.get(item)["register"] = 1
-                else:
-                    logging.debug("未收到回应继续发送上线事件 -> " + ip + ":" + port)
+                heartbeat = self.registerServer.get(item)
+                if heartbeat == 0:
+                    logging.debug("发送上线事件 -> " + ip + ":" + port)
                     msg = localIp + ":" + localPort + ":" + "online"
+                    self.rpcClient.sendCIM(msg, ip, port)
+                else:
+                    if item not in isSetLocalRoute:
+                        try:
+                            self.sendRpc(ip, port, "__setRpcRoute",
+                                         {"address": GlobalVariable.params.get("rpcIp") + ":"
+                                                     + str(GlobalVariable.params.get("rpcPort")),
+                                          "route": getLocalRoute()})
+                            isSetLocalRoute.append(item)
+                        except Exception:
+                            logging.exception(exc_info=True, msg="向远程主机注册本机路由表失败 ->"+ ip + ":" + port)
+                    msg = localIp + ":" + localPort + ":" + "heartbeat"
                     self.rpcClient.sendCIM(msg, ip, port)
             time.sleep(3)
 
@@ -146,14 +149,15 @@ class RpcService:
                     self.rpcClient.sendCIM(GlobalVariable.params.get("rpcIp") + ":" + str(GlobalVariable.params.get("rpcPort"))+":heartbeat", ip, port)
                     self.sendRpc(ip, port, "__setRpcRoute",
                                  {"address": GlobalVariable.params.get("rpcIp") + ":" + str(GlobalVariable.params.get("rpcPort")),
-                                  "route": GlobalVariable.FuncRoute})
-                    self.registerServer[address] = {"register": 1, "heartbeat": time.time()}
+                                  "route": getLocalRoute()})
+
+                    self.registerServer[address] = time.time()
                 except Exception as e:
                     logging.exception(exc_info=True)
                     logging.error("远程主机注册本机路由表失败 " + address + " "+ str(e))
         elif thing == "heartbeat":
             #心跳事件
-            self.registerServer[ip+":"+port]["heartbeat"] = time.time()
+            self.registerServer[ip+":"+port] = time.time()
 
 
     """
@@ -202,17 +206,19 @@ class RpcService:
 """
 返回本机信息
 """
-
 def getServerInstance():
     if instance is not None:
         return list(instance.registerServer.keys())
     else:
         return []
 
+"""
+外部主机注册路由表到本机
+"""
 def setRpcRoute(rpcRoute:dict):
     if rpcRoute is not None:
         address = rpcRoute.get("address")
-        route = rpcRoute.get("route").keys()
+        route = rpcRoute.get("route")
         for funcId in route:
             funcIdInfo = GlobalVariable.FuncRouteRpc.get(funcId)
             if funcIdInfo is None:
@@ -220,6 +226,17 @@ def setRpcRoute(rpcRoute:dict):
             else:
                 if funcIdInfo.get(address) is None:
                     funcIdInfo[address] = {"errorRatio": 0, "reqNum": 0, "updateTime": time.time()}
+    return "ok"
+
+"""
+获取本机可暴露的路由list
+"""
+def getLocalRoute():
+    re = []
+    for item in GlobalVariable.FuncRoute.keys():
+        if item[0:2] != "__":
+            re.append(item)
+    return re
 GlobalVariable.FuncRoute["__getServerInstance"] = getServerInstance
 GlobalVariable.FuncRoute["__setRpcRoute"] = setRpcRoute
 instance = None

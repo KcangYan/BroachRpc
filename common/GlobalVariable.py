@@ -29,7 +29,7 @@ params = {
 #全局线程池
 BroachPool = None
 
-#本机函数路由映射
+#本机函数路由映射 "__" (双下划线)开头命名的路由表示当前主机私有的映射 不会暴露给外部主机
 FuncRoute = {}
 
 #其他机器的路由表 { "funcId": {"ip:port": {"errorRatio": 0, "reqNum": 0, "updateTime": time}, ...} }
