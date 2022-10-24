@@ -1,5 +1,7 @@
 from common import GlobalVariable
+from exception import DefException
 import logging
+import copy
 
 """
 rpc装饰器 获取程序启动时的函数路由表
@@ -28,6 +30,16 @@ def rpcCall(name=None):
                 routeName = fn.__name__
             else:
                 routeName = name
+            if routeName in GlobalVariable.FuncRoute.keys():
+                logging.info("调用内部函数 -> "+routeName)
+                rpcFn = GlobalVariable.FuncRoute.get(routeName)
+                return rpcFn(*args, **kwargs)
+            else:
+                if routeName in GlobalVariable.FuncRouteRpc.keys():
+                    rpcFnInfo = GlobalVariable.FuncRouteRpc.get(routeName)
+
+                else:
+                    raise DefException.RpcFuncNotFundError(routeName+" is not Fund")
             logging.debug("rpc调用"+routeName)
             #re = RpcService.RpcService.sendRpc(routeName, )
             #logging.debug("rpc调用结束 结果:"+re)
