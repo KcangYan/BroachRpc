@@ -222,10 +222,10 @@ def setRpcRoute(rpcRoute:dict):
         for funcId in route:
             funcIdInfo = GlobalVariable.FuncRouteRpc.get(funcId)
             if funcIdInfo is None:
-                GlobalVariable.FuncRouteRpc[funcId] = {address:{"errorRatio": 0, "reqNum": 0, "updateTime": time.time()}}
+                GlobalVariable.FuncRouteRpc[funcId] = {address:{"errorRatio": 0, "reqNum": 0}}
             else:
                 if funcIdInfo.get(address) is None:
-                    funcIdInfo[address] = {"errorRatio": 0, "reqNum": 0, "updateTime": time.time()}
+                    funcIdInfo[address] = {"errorRatio": 0, "reqNum": 0}
     return "ok"
 
 """

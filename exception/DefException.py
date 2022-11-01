@@ -36,6 +36,15 @@ rpc远程调用远程服务端无此函数
 class RpcFuncNotFundError(Exception):
     def __init__(self, message):
         self.message = message
+
+
+"""
+rpc熔断异常
+"""
+class RpcFuncFusingError(Exception):
+    def __init__(self, message):
+        self.message = message
+
 """
 rpc调用通用异常
 """

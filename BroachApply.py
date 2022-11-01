@@ -23,7 +23,7 @@ def rpcRoute(name=None):
 """
 rpc装饰器 调用rpc服务
 """
-def rpcCall(name=None):
+def rpcCall(name=None, fusingRadio=0.7):
     def getFun(fn):
         def getParams(*args, **kwargs):
             if name is None:
@@ -37,7 +37,11 @@ def rpcCall(name=None):
             else:
                 if routeName in GlobalVariable.FuncRouteRpc.keys():
                     rpcFnInfo = GlobalVariable.FuncRouteRpc.get(routeName)
+                    if rpcFnInfo is not None:
+                        ipList = rpcFnInfo.keys()
 
+                    else:
+                        raise DefException.RpcFuncNotFundError(routeName+" is not Fund")
                 else:
                     raise DefException.RpcFuncNotFundError(routeName+" is not Fund")
             logging.debug("rpc调用"+routeName)
