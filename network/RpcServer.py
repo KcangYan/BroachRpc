@@ -36,7 +36,7 @@ class RpcServer:
                 logging.exception(exc_info=True, msg="rpc 通信异常")
 
     def __msgHandler(self, data, addr):
-        logging.debug("获得消息 <- " + str(addr)+" 内容: "+data.decode("utf-8"))
+        #logging.debug("获得消息 <- " + str(addr)+" 内容: "+data.decode("utf-8"))
         msgType, msg = MsgHandler.decodeData(data)
         if msgType == "NCP":
             self.__NCPHandler(msg)

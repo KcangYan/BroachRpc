@@ -23,7 +23,7 @@ class RpcClient:
         if len(data) > GlobalVariable.BufferLen :
             raise IOError("发送消息超过缓冲区3028字节长度限制")
         s.sendto(data, addr)
-        logging.debug("发送消息 -> "+str(addr)+" 内容: "+data.decode("utf-8"))
+        #logging.debug("发送消息 -> "+str(addr)+" 内容: "+data.decode("utf-8"))
         s.close()
 
     def sendCIM(self, msg, ip, port):

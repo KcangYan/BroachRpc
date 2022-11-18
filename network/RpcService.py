@@ -74,6 +74,7 @@ class RpcService:
             logging.error("NES通信消息id，重复异常。重新随机id")
             msgId = CommonDef.getId(18)
             sendResult = self.rpcClient.sendNES(msgId, reqJsonStr, ip, port)
+        logging.debug("发送NES消息: "+reqJsonStr)
     """
     微服务上线规则 非udp广播模式
     先去配置的ip列表里请求集群中的主机获取集群信息 然后注册本机和本机的路由给所有集群里的主机
