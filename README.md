@@ -16,6 +16,7 @@
 #参数路径导入框架主启动项，目前只支持json文件
 BroachFramework.run("./application1.json")
 ~~~~
+
 ~~~~json
 {
   "name": "BroachRpc",
